@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search Page</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+    <style>
+    body,h1,h2,h3,h4,h5 {font-family: "Raleway", sans-serif}
+    .w3-third img{margin-bottom: -6px; opacity: 0.8; cursor: pointer}
+    .w3-third img:hover{opacity: 1}
+    </style>
+</head>
+<body>
+<h1> Map Finder: Search for venues along driving route</h1>
+
+<form action="/add_directions" method="post">
+        <input type="text" name="start_location"> Enter Starting Address <br><br>
+        <input type="text" name="end_location"> Enter Destination Address <br><br>
+        <input type="text" name="venue"> Enter name of restaurant (starbucks, etc.), gas station, etc. <br><br>
+        <input type="text" name="max_deviation"> How far off route are you willing to go (in miles)? <br><br>
+        <input type="submit" value="Continue"><br>
+</form>
+
+</body>
+</html>

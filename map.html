@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Places Along Route</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 700px;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+    <style>
+    body,h1,h2,h3,h4,h5 {font-family: "Raleway", sans-serif}
+    .w3-third img{margin-bottom: -6px; opacity: 0.8; cursor: pointer}
+    .w3-third img:hover{opacity: 1}
+    </style>
+  </head>
+  <body>
+    <h1> Here are {{ venues.capitalize() }} along your route.</h1>
+    <div id="map"></div>
+    <script>
+      var map;
+      function initMap() {
+        var directionsService = new google.maps.DirectionsService;
+        var directionsDisplay = new google.maps.DirectionsRenderer;
+        map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 12,
+          center: {lat: 30.566614, lng: -96.233084}
+        });
+        directionsDisplay.setMap(map);
+        calculateAndDisplayRoute(directionsService, directionsDisplay);
+      }
+
+      var coord_list = [];
+      var request;
+      var service;
+
+      function calculateAndDisplayRoute(directionsService, directionsDisplay) {
+        directionsService.route({
+          origin: '{{ start_location }}',
+          destination: '{{ end_location }}',
+          travelMode: 'DRIVING'
+        }, function(response, status) {
+          if (status === 'OK') {
+            directionsDisplay.setDirections(response);
+
+            for (step = 0, len = response.routes[0].legs[0].steps.length; step<len; step++) {
+              for (coord=0, len2 = response.routes[0].legs[0].steps[step].path.length; coord<len2; coord++) {
+                coord_list.push({lat: response.routes[0].legs[0].steps[step].path[coord].lat(), lng: response.routes[0].legs[0].steps[step].path[coord].lng()})
+              }
+            }
+            find_places(); //calls function to find places
+
+          } else {
+            window.alert('Directions request failed due to ' + status);
+          }
+        });
+      }
+
+      function find_places() {
+        console.log('this is the coord list')
+        console.log(coord_list)
+
+        service = new google.maps.places.PlacesService(map);
+        for (coord = 0, len = coord_list.length, inc = coord_list.length/10; coord<len; coord+=inc) {
+            new_coord = coord_list[Math.trunc(coord)]
+            request = {
+            location: new_coord,
+            radius: 5000, //NEED TO CHANGE THIS VALUE TO ACCOUNT FOR DIFFERING ROUTE LENGTHS
+            keyword: '{{ venues }}'
+            };
+
+          service.nearbySearch(request, callback);
+
+        }
+
+        //Call for last coordinate in route (for loop ends before it)
+        request = {
+            location: coord_list[coord_list.length],
+            radius: 5000,
+            keyword: '{{ venues }}'
+            };
+         service.nearbySearch(request, callback)
+
+      }
+
+      function callback(results, status) {
+        if (status == google.maps.places.PlacesServiceStatus.OK) {
+          for (var i = 0; i < results.length; i++) {
+            createMarker(results[i])
+          }
+        }
+      }
+      var info;
+      function callback2(place2, status) {
+        if (status == google.maps.places.PlacesServiceStatus.OK) {
+          //give the returned content to the var infoWindow content
+          info = place2.formatted_address;
+          createSecondMarker(place2);
+        }
+      }
+
+
+      function createMarker(place){
+        console.log(valid_dist(place));
+        if (valid_dist(place) == 'true') {
+          var marker = new google.maps.Marker({
+          position: place.geometry.location,
+          map: map,
+          title: place.name
+          });
+
+
+          google.maps.event.addListener(marker, 'click', function() {
+            var request2 = {
+              placeId: place.place_id
+            }
+            service.getDetails(request2, callback2)
+          });
+        }
+      }
+
+      function createSecondMarker(place){ //creates a second marker for when the user clicks on the initial marker
+          var marker = new google.maps.Marker({
+          position: place.geometry.location,
+          map: map,
+          title: place.name
+          });
+
+          var infoWindow = new google.maps.InfoWindow({
+            content: info
+          });
+
+          infoWindow.open(map,marker)
+
+          google.maps.event.addListener(marker, 'click', function() {
+            createSecondMarker(place)
+          });
+
+      }
+
+      //checks to see if the inputted place is not too far off from the route
+      function valid_dist(place) {
+        var interval = coord_list.length/10;
+
+        //Calculate array section index
+        var min = 10000;
+        var counter = 0;
+        for (coord = interval/2; coord<=10*interval; coord += interval) {
+          var dist = haversine(place.geometry.location.lat(), place.geometry.location.lng(), coord_list[Math.trunc(coord)].lat, coord_list[Math.trunc(coord)].lng)
+          if (dist<min) {
+            min = dist;
+            var index = counter;
+          }
+          counter++;
+        }
+
+        //Check valid distances within array subsection
+        min = 10000;
+        console.log(index);
+        for (coord = index*interval; coord<(index+1)*interval; coord++) {
+          dist = haversine(place.geometry.location.lat(), place.geometry.location.lng(), coord_list[Math.trunc(coord)].lat, coord_list[Math.trunc(coord)].lng)
+          if (dist<min) {
+            min = dist;
+          }
+        }
+        if (min< {{ max_deviation }}) {
+          return 'true';
+        } else {
+            return 'false'; }
+
+      }
+
+      function haversine(lat1, lon1, lat2, lon2) {
+        var R = 6371; // km
+        var dLat = toRad(lat2-lat1);
+        var dLon = toRad(lon2-lon1);
+        var lat1 = toRad(lat1);
+        var lat2 = toRad(lat2);
+
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        var d = R * c;
+        return d;
+      }
+
+      // Converts numeric degrees to radians
+      function toRad(Value)
+      {
+          return Value * Math.PI / 180;
+      }
+
+
+
+
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD0spnd4AkZs9q7hUHdT9vKUqYdYKu6zDU&libraries=places&callback=initMap"
+    async defer></script>
+  </body>
+</html>
